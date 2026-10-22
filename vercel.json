@@ -5,10 +5,6 @@
       "destination": "/api/index.py"
     },
     {
-      "source": "/webhook",
-      "destination": "/api/index.py"
-    },
-    {
       "source": "/(.*)",
       "destination": "/public/$1"
     }
