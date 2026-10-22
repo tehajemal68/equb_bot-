@@ -1,35 +1,40 @@
 import os
-import asyncio
+import json
+import urllib.request
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
 
-TOKEN = os.environ.get("BOT_TOKEN")
 app = Flask(__name__)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ሰላም! ቦቱ በክላውድ ላይ በተሳካ ሁኔታ ሰርቷል!")
-
-async def process_telegram_update(update_data):
-    # We build the Application inside the request to avoid event loop conflicts in Vercel
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    
-    await application.initialize()
-    update = Update.de_json(update_data, application.bot)
-    await application.process_update(update)
-    await application.shutdown()
+TOKEN = os.environ.get("BOT_TOKEN")
 
 @app.route('/', methods=['POST'])
 def webhook():
     if request.method == 'POST':
-        update_data = request.get_json(force=True)
-        try:
-            # Force Vercel to wait for the async process to finish
-            asyncio.run(process_telegram_update(update_data))
-        except Exception as e:
-            print(f"CRITICAL ERROR: {e}")
-            return 'Error', 500
+        data = request.get_json(force=True)
+        
+        # Check if the message is /start
+        if 'message' in data and 'text' in data['message']:
+            chat_id = data['message']['chat']['id']
+            text = data['message']['text']
+            
+            if text == '/start':
+                # Directly call the Telegram API to send the message
+                url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+                payload = {
+                    "chat_id": chat_id, 
+                    "text": "ሰላም! ቦቱ በክላውድ ላይ በተሳካ ሁኔታ ሰርቷል! (Bot is on the cloud!)"
+                }
+                
+                req = urllib.request.Request(
+                    url, 
+                    data=json.dumps(payload).encode('utf-8'), 
+                    headers={'Content-Type': 'application/json'}
+                )
+                
+                try:
+                    urllib.request.urlopen(req)
+                except Exception as e:
+                    print(f"TELEGRAM ERROR: {e}")
+                    
         return 'OK', 200
     return 'Bad Request', 400
 
