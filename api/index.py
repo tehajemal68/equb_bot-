@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # CONFIGURATION
 # Replace with actual Telegram Admin User IDs (integers)
-ADMIN_USER_IDS = [1736356581]  
+ADMIN_USER_IDS = [8749216989]  
 
 # BOT TOKEN (Set this in Vercel Environment Variables)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
