@@ -7,34 +7,32 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 TOKEN = os.environ.get("BOT_TOKEN")
 app = Flask(__name__)
 
-# Create the application at the module level
-telegram_app = Application.builder().token(TOKEN).build()
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ሰላም! ቦቱ በክላውድ ላይ በተሳካ ሁኔታ ሰርቷል!")
 
-telegram_app.add_handler(CommandHandler("start", start))
-
-async def process_update(update_data):
-    # Initialize, process, and shut down within the same event loop
-    await telegram_app.initialize()
-    update = Update.de_json(update_data, telegram_app.bot)
-    await telegram_app.process_update(update)
-    await telegram_app.shutdown()
+async def process_telegram_update(update_data):
+    # We build the Application inside the request to avoid event loop conflicts in Vercel
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    
+    await application.initialize()
+    update = Update.de_json(update_data, application.bot)
+    await application.process_update(update)
+    await application.shutdown()
 
 @app.route('/', methods=['POST'])
 def webhook():
-    if request.headers.get('content-type') == 'application/json':
+    if request.method == 'POST':
         update_data = request.get_json(force=True)
         try:
-            # asyncio.run() creates a fresh event loop to execute the async tasks
-            asyncio.run(process_update(update_data))
+            # Force Vercel to wait for the async process to finish
+            asyncio.run(process_telegram_update(update_data))
         except Exception as e:
-            print(f"Error processing update: {e}")
+            print(f"CRITICAL ERROR: {e}")
             return 'Error', 500
         return 'OK', 200
     return 'Bad Request', 400
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return "Webhook is active"
