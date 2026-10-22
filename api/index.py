@@ -1,29 +1,36 @@
-import os, json, asyncio
+import os
+import json
+import asyncio
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = os.environ.get("BOT_TOKEN")
 app = Flask(__name__)
-telegram_app = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ሰላም! ቦቱ በክላውድ ላይ በተሳካ ሁኔታ ሰርቷል!")
 
-telegram_app.add_handler(CommandHandler("start", start))
+async def process_telegram_update(update_data):
+    # Build the application inside the async function
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    
+    update = Update.de_json(update_data, application.bot)
+    
+    # Official serverless pattern: initialize, process, then shutdown
+    await application.initialize()
+    await application.process_update(update)
+    await application.shutdown()
 
 @app.route('/', methods=['POST'])
 def webhook():
     if request.headers.get('content-type') == 'application/json':
-        req_json = request.get_json(force=True)
-        update = Update.de_json(req_json, telegram_app.bot)
-
-        # 🚨 This bridge allows Vercel to run the async Telegram logic
-        async def process():
-            async with telegram_app:
-                await telegram_app.process_update(update)
-
-        asyncio.run(process())
+        update_data = request.get_json(force=True)
+        
+        # Run the async function
+        asyncio.run(process_telegram_update(update_data))
+        
         return 'OK', 200
     return 'Bad Request', 400
 
