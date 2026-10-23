@@ -16,8 +16,12 @@
     :root {
       --bg-color: var(--telegram-bg-color, #17212b);
       --text-color: var(--telegram-text-color, #ffffff);
+      --hint-color: var(--telegram-hint-color, #708499);
+      --button-color: var(--telegram-button-color, #5288c1);
+      --button-text-color: var(--telegram-button-text-color, #ffffff);
       --secondary-bg: var(--telegram-secondary-bg-color, #232e3c);
       --accent-gold: #f39c12;
+      --accent-green: #2ecc71;
     }
 
     * {
@@ -41,6 +45,7 @@
       overflow-x: hidden;
     }
 
+    /* Wheel Styling */
     .wheel-container {
       position: relative;
       width: min(82vw, 320px);
@@ -87,6 +92,7 @@
       font-size: 20px;
     }
 
+    /* Modal Animation */
     .winner-modal {
       display: none;
       position: fixed;
@@ -131,7 +137,7 @@
     <div id="statusText" class="text-base font-bold text-white mt-0.5">Initializing...</div>
   </div>
 
-  <!-- Control Buttons Area -->
+  <!-- Control Buttons Area (Rendered via JS based on Admin/User status) -->
   <div id="controlsArea" class="w-full max-w-sm flex flex-col gap-2.5 my-2">
     <button class="w-full py-3 px-4 rounded-xl font-bold bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" disabled>
       ⏳ Authenticating...
@@ -162,27 +168,24 @@
   </div>
 
   <script>
-    // --- Error Catching for Debugging ---
-    window.onerror = function(message, source, lineno, colno, error) {
-      document.getElementById('statusText').innerText = "JS Error: " + message;
-      return false;
-    };
-
-    // --- 1. Initialize Telegram ---
+    // 1. Initialize Telegram WebApp SDK
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
       tg.expand();
+      if (tg.setHeaderColor) tg.setHeaderColor("secondary_bg_color");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
     }
 
-    const userId = tg?.initDataUnsafe?.user?.id || 0;
+    // Extract Telegram User or Default Sandbox User
+    const userId = tg?.initDataUnsafe?.user?.id || 123456789;
     let isAdmin = false;
     let isSpinning = false;
     let currentRotation = 0;
     let lastPassedSegment = 0;
     let localStatus = "waiting";
 
-    // --- 2. Audio Synthesizer ---
+    // Audio Context Synthesizer (No external audio files required)
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null;
 
@@ -227,7 +230,7 @@
       } catch (e) {}
     }
 
-    // --- 3. Wheel Drawing ---
+    // Wheel Canvas Setup
     const canvas = document.getElementById('wheelCanvas');
     const ctx = canvas.getContext('2d');
     const NUM_SEGMENTS = 100;
@@ -262,7 +265,7 @@
       }
     }
 
-    // --- 4. Spin Animation ---
+    // Smooth GSAP Wheel Spin Logic
     function animateSpin(winnerNumber, onComplete) {
       initAudio();
       isSpinning = true;
@@ -299,7 +302,13 @@
       });
     }
 
-    // --- 5. API Calls ---
+    // Backend endpoints required:
+    // POST /api/auth   -> { "is_admin": true|false }
+    // POST /api/spin   -> accepts { "user_id": ... }; must authorize admin server-side
+    // POST /api/reset  -> accepts { "user_id": ... }; must authorize admin server-side
+    // GET  /api/status -> { "status": "waiting"|"spinning", "winner": 1..100, "history": [] }
+    // The backend must verify Telegram initData on the server. initDataUnsafe alone is not authentication.
+    // Backend Connection & Polling Logic
     async function initAuth() {
       try {
         const res = await fetch('/api/auth', {
@@ -307,17 +316,20 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId })
         });
-        
+
         if (!res.ok) throw new Error("API Auth Failed");
         const data = await res.json();
         isAdmin = data.is_admin;
-        
-        document.getElementById('userRoleTag').innerText = `ID: ${userId} | Admin: ${isAdmin}`;
-        
+
+        document.getElementById('userRoleTag').innerText = isAdmin 
+          ? "👑 Administrator Access" 
+          : "👤 Participant Member";
+
       } catch (err) {
-        console.error("API Auth Failed:", err);
+        console.error("API authentication failed:", err);
         isAdmin = false;
-        document.getElementById('userRoleTag').innerText = "Error connecting to server";
+        document.getElementById('userRoleTag').innerText = "⚠️ Connection unavailable";
+        document.getElementById('statusText').innerText = "Cannot connect to the draw server";
       } finally {
         renderControls();
         pollStatus();
@@ -358,8 +370,13 @@
           body: JSON.stringify({ user_id: userId })
         });
         const data = await res.json();
-        if (data.error && spinBtn) spinBtn.disabled = false;
+        if (!res.ok || data.error) {
+          throw new Error(data.error || "The server rejected the spin request.");
+        }
+        document.getElementById('statusText').innerText = "Spin requested. Waiting for live draw...";
       } catch (err) {
+        console.error("Spin request failed:", err);
+        document.getElementById('statusText').innerText = "Server connection failed. Please try again.";
         if (spinBtn) spinBtn.disabled = false;
       }
     }
@@ -371,7 +388,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId })
         });
-      } catch(e) {}
+      } catch(e) {
+        console.error("Reset request failed:", e);
+        document.getElementById('statusText').innerText = "Reset failed. Check the server connection.";
+        return;
+      }
       closeModal();
       document.getElementById('statusText').innerText = "Ready for Draw";
     }
@@ -382,6 +403,7 @@
         if (!res.ok) throw new Error("Status endpoint unavailable");
         const data = await res.json();
 
+        // Update history drawer
         if (data.history) {
           updateHistoryUI(data.history);
         }
@@ -401,8 +423,8 @@
           document.getElementById('statusText').innerText = "Ready for Draw";
         }
       } catch (err) {
-        if (!isSpinning && localStatus === "waiting") {
-          document.getElementById('statusText').innerText = "Ready for Draw";
+        if (!isSpinning) {
+          document.getElementById('statusText').innerText = "⚠️ Reconnecting to draw server...";
         }
       }
     }
@@ -434,16 +456,10 @@
       document.getElementById('winnerModal').classList.remove('active');
     }
 
-    // --- 6. Initialize Everything on Load ---
-    window.onload = function() {
-      try {
-        drawWheel();
-        initAuth();
-        setInterval(pollStatus, 1500); // Check for live spins every 1.5s
-      } catch (err) {
-        document.getElementById('statusText').innerText = "Load Error: " + err.message;
-      }
-    };
+    // Init App
+    drawWheel();
+    initAuth();
+    setInterval(pollStatus, 1500);
   </script>
 </body>
 </html>
