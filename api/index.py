@@ -8,7 +8,7 @@ app = Flask(__name__, static_folder='../public', static_url_path='')
 TOKEN = os.environ.get("BOT_TOKEN")
 
 # 🚨 IMPORTANT: YOUR TELEGRAM ID (Admin)
-ADMIN_ID = 8749216989
+ADMIN_ID = "8749216989"
 
 # Global state for the live draw
 GLOBAL_STATE = {
