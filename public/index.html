@@ -16,12 +16,8 @@
     :root {
       --bg-color: var(--telegram-bg-color, #17212b);
       --text-color: var(--telegram-text-color, #ffffff);
-      --hint-color: var(--telegram-hint-color, #708499);
-      --button-color: var(--telegram-button-color, #5288c1);
-      --button-text-color: var(--telegram-button-text-color, #ffffff);
       --secondary-bg: var(--telegram-secondary-bg-color, #232e3c);
       --accent-gold: #f39c12;
-      --accent-green: #2ecc71;
     }
 
     * {
@@ -135,7 +131,7 @@
     <div id="statusText" class="text-base font-bold text-white mt-0.5">Initializing...</div>
   </div>
 
-  <!-- Control Buttons Area (Rendered via JS) -->
+  <!-- Control Buttons Area -->
   <div id="controlsArea" class="w-full max-w-sm flex flex-col gap-2.5 my-2">
     <button class="w-full py-3 px-4 rounded-xl font-bold bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" disabled>
       ⏳ Authenticating...
@@ -166,33 +162,27 @@
   </div>
 
   <script>
-    // Catch JS errors and show them visually
+    // --- Error Catching for Debugging ---
     window.onerror = function(message, source, lineno, colno, error) {
-      document.body.innerHTML = `<div style="color:red; padding:20px; font-family:monospace; background:white; min-height:100vh;">
-        <h3>JavaScript Error Detected:</h3>
-        <p>${message}</p>
-        <p>Line: ${lineno}</p>
-        <p>ID Extracted: ${window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'None'}</p>
-      </div>`;
+      document.getElementById('statusText').innerText = "JS Error: " + message;
       return false;
     };
 
-    // Initialize Telegram WebApp SDK
+    // --- 1. Initialize Telegram ---
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
       tg.expand();
     }
 
-    // Extract Telegram User (Fallback to test ID if opened outside Telegram)
-    const userId = tg?.initDataUnsafe?.user?.id || 123456789;
+    const userId = tg?.initDataUnsafe?.user?.id || 0;
     let isAdmin = false;
     let isSpinning = false;
     let currentRotation = 0;
     let lastPassedSegment = 0;
     let localStatus = "waiting";
 
-    // Audio Context Synthesizer
+    // --- 2. Audio Synthesizer ---
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null;
 
@@ -237,7 +227,7 @@
       } catch (e) {}
     }
 
-    // Wheel Canvas Setup
+    // --- 3. Wheel Drawing ---
     const canvas = document.getElementById('wheelCanvas');
     const ctx = canvas.getContext('2d');
     const NUM_SEGMENTS = 100;
@@ -272,7 +262,7 @@
       }
     }
 
-    // Smooth GSAP Wheel Spin Logic
+    // --- 4. Spin Animation ---
     function animateSpin(winnerNumber, onComplete) {
       initAudio();
       isSpinning = true;
@@ -309,7 +299,7 @@
       });
     }
 
-    // Backend Connection & Polling Logic
+    // --- 5. API Calls ---
     async function initAuth() {
       try {
         const res = await fetch('/api/auth', {
@@ -334,7 +324,6 @@
       }
     }
 
-    // RENDER CONTROLS (Must be outside initAuth)
     function renderControls() {
       const container = document.getElementById('controlsArea');
       container.innerHTML = '';
@@ -371,8 +360,7 @@
         const data = await res.json();
         if (data.error && spinBtn) spinBtn.disabled = false;
       } catch (err) {
-        const mockWinner = Math.floor(Math.random() * 100) + 1;
-        animateSpin(mockWinner, () => showWinner(mockWinner));
+        if (spinBtn) spinBtn.disabled = false;
       }
     }
 
@@ -446,14 +434,14 @@
       document.getElementById('winnerModal').classList.remove('active');
     }
 
-    // Wait for everything to load before starting
+    // --- 6. Initialize Everything on Load ---
     window.onload = function() {
       try {
         drawWheel();
         initAuth();
-        setInterval(pollStatus, 1500);
+        setInterval(pollStatus, 1500); // Check for live spins every 1.5s
       } catch (err) {
-        document.getElementById('statusText').innerText = "JS Error: " + err.message;
+        document.getElementById('statusText').innerText = "Load Error: " + err.message;
       }
     };
   </script>
