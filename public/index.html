@@ -318,11 +318,10 @@
           : "👤 Participant Member";
 
       } catch (err) {
-        // Fallback demo mode if standalone
-        console.warn("API Auth fallback enabled:", err);
-        isAdmin = true; // Enabled for testing when backend isn't connected
-        document.getElementById('userRoleTag').innerText = "👑 Administrator Access (Demo)";
-      } finally {
+  console.error("API Auth Failed:", err);
+  isAdmin = false; // If the server fails, treat them as a regular user
+  document.getElementById('userRoleTag').innerText = "👤 Participant Member";
+} finally {
         renderControls();
         pollStatus();
       }
