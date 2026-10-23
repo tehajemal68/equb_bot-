@@ -45,7 +45,6 @@
       overflow-x: hidden;
     }
 
-    /* Wheel Styling */
     .wheel-container {
       position: relative;
       width: min(82vw, 320px);
@@ -92,7 +91,6 @@
       font-size: 20px;
     }
 
-    /* Modal Animation */
     .winner-modal {
       display: none;
       position: fixed;
@@ -137,7 +135,7 @@
     <div id="statusText" class="text-base font-bold text-white mt-0.5">Initializing...</div>
   </div>
 
-  <!-- Control Buttons Area (Rendered via JS based on Admin/User status) -->
+  <!-- Control Buttons Area (Rendered via JS) -->
   <div id="controlsArea" class="w-full max-w-sm flex flex-col gap-2.5 my-2">
     <button class="w-full py-3 px-4 rounded-xl font-bold bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" disabled>
       ⏳ Authenticating...
@@ -168,25 +166,25 @@
   </div>
 
   <script>
-    // ADD THIS: Catch errors and show them on screen
-window.onerror = function(message, source, lineno, colno, error) {
-  document.body.innerHTML = `<div style="color:red; padding:20px; font-family:monospace; background:white;">
-    <h3>JavaScript Error Detected:</h3>
-    <p>${message}</p>
-    <p>Line: ${lineno}</p>
-    <p>ID Extracted: ${window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'None'}</p>
-  </div>`;
-  return false;
-};
+    // Catch JS errors and show them visually
+    window.onerror = function(message, source, lineno, colno, error) {
+      document.body.innerHTML = `<div style="color:red; padding:20px; font-family:monospace; background:white; min-height:100vh;">
+        <h3>JavaScript Error Detected:</h3>
+        <p>${message}</p>
+        <p>Line: ${lineno}</p>
+        <p>ID Extracted: ${window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'None'}</p>
+      </div>`;
+      return false;
+    };
 
-// 1. Initialize Telegram WebApp SDK
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-}
+    // Initialize Telegram WebApp SDK
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
 
-    // Extract Telegram User or Default Sandbox User
+    // Extract Telegram User (Fallback to test ID if opened outside Telegram)
     const userId = tg?.initDataUnsafe?.user?.id || 123456789;
     let isAdmin = false;
     let isSpinning = false;
@@ -194,7 +192,7 @@ if (tg) {
     let lastPassedSegment = 0;
     let localStatus = "waiting";
 
-    // Audio Context Synthesizer (No external audio files required)
+    // Audio Context Synthesizer
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null;
 
@@ -319,20 +317,24 @@ if (tg) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId })
         });
-
+        
         if (!res.ok) throw new Error("API Auth Failed");
         const data = await res.json();
         isAdmin = data.is_admin;
-
+        
         document.getElementById('userRoleTag').innerText = `ID: ${userId} | Admin: ${isAdmin}`;
-
+        
       } catch (err) {
-  console.error("API Auth Failed:", err);
-  isAdmin = false;
-  document.getElementById('userRoleTag').innerText = "Error connecting to server";
-} finally {
-  
+        console.error("API Auth Failed:", err);
+        isAdmin = false;
+        document.getElementById('userRoleTag').innerText = "Error connecting to server";
+      } finally {
+        renderControls();
+        pollStatus();
+      }
+    }
 
+    // RENDER CONTROLS (Must be outside initAuth)
     function renderControls() {
       const container = document.getElementById('controlsArea');
       container.innerHTML = '';
@@ -369,7 +371,6 @@ if (tg) {
         const data = await res.json();
         if (data.error && spinBtn) spinBtn.disabled = false;
       } catch (err) {
-        // Local simulation fallback
         const mockWinner = Math.floor(Math.random() * 100) + 1;
         animateSpin(mockWinner, () => showWinner(mockWinner));
       }
@@ -393,7 +394,6 @@ if (tg) {
         if (!res.ok) throw new Error("Status endpoint unavailable");
         const data = await res.json();
 
-        // Update history drawer
         if (data.history) {
           updateHistoryUI(data.history);
         }
@@ -446,17 +446,16 @@ if (tg) {
       document.getElementById('winnerModal').classList.remove('active');
     }
 
-    // Init App
-window.onload = function() {
-  try {
-    drawWheel();
-    initAuth();
-    setInterval(pollStatus, 1500);
-  } catch (err) {
-    document.getElementById('statusText').innerText = "JS Error: " + err.message;
-  }
-};
+    // Wait for everything to load before starting
+    window.onload = function() {
+      try {
+        drawWheel();
+        initAuth();
+        setInterval(pollStatus, 1500);
+      } catch (err) {
+        document.getElementById('statusText').innerText = "JS Error: " + err.message;
+      }
+    };
   </script>
 </body>
 </html>
-```
