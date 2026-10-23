@@ -329,11 +329,9 @@ if (tg) {
       } catch (err) {
   console.error("API Auth Failed:", err);
   isAdmin = false;
-  document.getElementById('userRoleTag').innerText = "Error: API Failed";
+  document.getElementById('userRoleTag').innerText = "Error connecting to server";
 } finally {
-  renderControls();
-  pollStatus();
-    }
+  
 
     function renderControls() {
       const container = document.getElementById('controlsArea');
