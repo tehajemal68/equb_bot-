@@ -449,9 +449,15 @@ if (tg) {
     }
 
     // Init App
+window.onload = function() {
+  try {
     drawWheel();
     initAuth();
     setInterval(pollStatus, 1500);
+  } catch (err) {
+    document.getElementById('statusText').innerText = "JS Error: " + err.message;
+  }
+};
   </script>
 </body>
 </html>
